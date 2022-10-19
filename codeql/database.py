@@ -6,10 +6,9 @@ CodeQL for Python.
 
 import os
 import shutil
-import tempfile
 
 import codeql
-from .common import *
+from .common import run, search_path, temporary_dir
 
 # Constants
 CODEQL_QLPACK = '''
@@ -17,6 +16,7 @@ name: codeql-python
 version: 0.0.0
 libraryPathDependencies: {}
 '''
+
 
 class Database(object):
     def __init__(self, path, temp=False):
@@ -66,7 +66,7 @@ class Database(object):
                 f.write(qlpack_text)
         # Perform query
         query_path = os.path.join(self.qldir, 'query.ql')
-        reply_path = os.path.join(self.qldir, 'reply.csv')
+        # reply_path = os.path.join(self.qldir, 'reply.csv')
         with open(query_path, mode='w') as f:
             f.write(ql)
         query = codeql.Query(query_path)
@@ -91,7 +91,7 @@ class Database(object):
             compiler to be invoked on the source code to analyze. These commands
             will be executed under an instrumentation environment that allows
             analysis of generated code and (in some cases) standard libraries.
-        database -- Path to generated database
+        location -- Path to generated database
         """
         # Syntactic sugar: Default location to temporary directory
         if location is None:
@@ -104,11 +104,12 @@ class Database(object):
                 command = ' '.join(map(lambda x: f'"{x}"' if ' ' in x else x, command))
             args += ['-c', command]
         args.append(location)
+        print(command)
+        print(' '.join(args))
         run(args)
 
         # Return database instance
         return Database(location)
-
 
     def analyze(self, queries, format, output):
         """
@@ -135,7 +136,7 @@ class Database(object):
             options += ['--search-path', search_path]
         # Dispatch command
         self.run_command('analyze', options, post=queries)
-    
+
     def upgrade(self):
         """
         Upgrade a database so it is usable by the current tools.

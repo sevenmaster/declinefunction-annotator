@@ -7,6 +7,7 @@ import itertools
 import re
 from annotation_result import AnnotationResult
 from candidate_generation import FunctionCandidateGeneration
+import settings
 
 annotation = '__attribute__((always_inline))'
 
@@ -30,10 +31,15 @@ def produce_inline_variants(path: str) \
     function_range = (main.start_line, main.end_line)
     for function in to_inline:
         line = function.start_line
-        annotated = source_lines[:line - 1] \
-            + [annotation] \
-            + source_lines[line - 1:]
-        annotated = '\n'.join(annotated)
+        # annotated = source_lines[:line - 1] \
+        #     + [annotation] \
+        #     + source_lines[line - 1:]
+        # annotated = '\n'.join(annotated)
+        func_def = source_lines[line - 1].split(' ')
+        source_lines[line - 1] = ' '.join(func_def[:2] +
+                                          [annotation] +
+                                          func_def[2:])
+        annotated = '\n'.join(source_lines)
 
         inline_candidate_names = list(map(lambda x: x.long_name, to_inline))
         annotation_result = AnnotationResult(
@@ -50,18 +56,18 @@ def produce_inline_variants(path: str) \
 def produce_inline_variants_ql(path: str)\
         -> Generator[None, AnnotationResult, None]:
     MIN_CC = 0
-    with open(path, 'r') as f:
-        sourcecode = f.read()
     candidate_generator = FunctionCandidateGeneration(MIN_CC)
-    results = candidate_generator.from_source(sourcecode)
-    print('hi', results)
+    to_inline = candidate_generator.from_file(path)
+    for candiate in to_inline:
+        pass
+    print(list(to_inline))
 
 
 def compile_with_symbols(annotated_source_path: str) -> str:
     annotated_source_path = os.path.abspath(annotated_source_path)
     binary_path = annotated_source_path[:-4]
-    command = ['clang++-14', '-g3', '-O0',
-               annotated_source_path, '-o', binary_path]
+    command = settings.unoptimized_compile +\
+        [annotated_source_path, '-o', binary_path]
     child = subprocess.call(command)
     assert child == 0
     return binary_path
@@ -110,11 +116,11 @@ def get_va_ranges(binary_path: str,
 in_path = '/home/nine/CLionProjects/'\
           + 'inlinefunctionplayground/onlyInline/inlineFunction.cpp'
 path = os.path.abspath(in_path)
-produce_inline_variants_ql(path)
+# produce_inline_variants_ql(path)
 
-# for s in produce_inline_variants(in_path):
-#     new_path = './results/' + s.new_filename()
-#     with open(new_path, 'w+') as f:
-#         f.write(s.annotated_source)
-#     binary_path = compile_with_symbols(new_path)
-#     get_va_ranges(binary_path, 'main', s.lines_of_calling_function)
+for s in produce_inline_variants(in_path):
+    new_path = './results/' + s.new_filename()
+    with open(new_path, 'w+') as f:
+        f.write(s.annotated_source)
+    binary_path = compile_with_symbols(new_path)
+    get_va_ranges(binary_path, 'main', s.lines_of_calling_function)
