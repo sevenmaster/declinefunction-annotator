@@ -79,7 +79,7 @@ select
 
 def post_process(raw_results: List[List[str]]) -> List[list]:
     for res in raw_results:
-        res.append(res[0].split(' '))  # calle return type
+        res.append(res[0].split(' ')[0])  # calle return type
         res[0] = strip_return_type(res[0])  # calle_name
         res[1] = to_source_range(res[1]).get_start_location()  # calle_location
         res[2] = strip_return_type(res[2])  # caller_name

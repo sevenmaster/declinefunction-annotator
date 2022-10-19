@@ -5,3 +5,4 @@ __pycache__/
 results/
 .cache/
 pyvenv.cfg
+dataset/codeforces/

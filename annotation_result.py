@@ -1,29 +1,20 @@
 from typing import List, Tuple
 import os
+from dataclasses import dataclass
+from candidate_generation import Candidate
 
 
+@dataclass
 class AnnotationResult:
     annotated_source: str
     annotated_function: str
     all_candidates: List[str]
     cyclomatic_complexity: int
     original_path: str
-    # source code range the function that calls the inlined function
+    """
+    source code range the function that calls the inlined function
+    """
     lines_of_calling_function: Tuple[int, int]
-
-    def __init__(self,
-                 annotated_source: str,
-                 annotated_function: str,
-                 all_candidates: List[str],
-                 cyclomatic_complexity: int,
-                 original_path: str,
-                 lines_of_calling_function: Tuple[int, int]):
-        self.annotated_source = annotated_source
-        self.annotated_function = annotated_function
-        self.all_candidates = all_candidates
-        self.cyclomatic_complexity = cyclomatic_complexity
-        self.original_path = original_path
-        self.lines_of_calling_function = lines_of_calling_function
 
     def new_filename(self) -> str:
         unescaped = self.original_path + '::' + self.annotated_function
@@ -39,3 +30,10 @@ class AnnotationResult:
 // main_range: {self.lines_of_calling_function}
 '''
         return prefix + self.annotated_source
+
+
+@dataclass
+class InlineResult:
+    candidate: Candidate
+    annotated_source_path: str
+    annotated_source: str
