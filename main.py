@@ -55,13 +55,16 @@ def produce_inline_variants(path: str) \
 
 
 def prepare_result_path(path: str, inlined_function: str) -> str:
+
     full_folder_path, filename = os.path.split(path)
     escaped = ''.join(c if c not in '/.' else '_' for c in inlined_function)
     _, folder_name = os.path.split(full_folder_path)
+
     # insert function name before .cpp
     result_filename = filename[:-4] + '::' + escaped + '.cpp'
     result_folder = os.path.join('results', folder_name)
     result_path = os.path.join(result_folder, result_filename)
+
     os.makedirs(result_folder, exist_ok=True)
     return result_path
 
@@ -110,32 +113,37 @@ def get_va_ranges(binary_path: str,
         caller = 'main'
     start = caller_range[0] + 1
     end = caller_range[1] + 1
+
+    # get objdump lines for disassembly of caller with draw line mapping
     objdump_command = ['llvm-objdump',
                        '-M', 'intel',
                        '--demangle',
                        f'--disassemble-symbols={caller}',
                        '-l', binary_path]
     output = subprocess.check_output(objdump_command)
-    output = output.decode('utf-8').split('\n')
-    output = itertools.dropwhile(
+    output = output.decode('utf-8')
+    output = output.split('\n')
+
+    output = itertools.dropwhile(  # keep only disassembly, no headers
             lambda x: re.match(r'; .+.cpp:[0-9]+', x) is None,
             output
             )
-    output = filter(lambda x: x != '', output)
-    output = map(str.lstrip, output)
-    line_insturction_mapping: Dict[int, List[str]] = {}
+    output = filter(lambda x: x != '', output)  # remove blank lines
+    output = list(map(str.lstrip, output))  # remove indentation
+    line_insturction_mapping: List[Tuple[int, List[str]]] = []
     instructions_for_line: List[str] = []
     for line in output:
         if line.startswith('; '):
-            line_num = int(line.split('.cpp:')[1])
-            if instructions_for_line != []:
-                line_insturction_mapping[line_num] = instructions_for_line
+            line_num = int(line.split('.cpp:')[-1])
+            if instructions_for_line != []:  # store previous line if exists
+                line_insturction_mapping.append(
+                        (line_num, instructions_for_line))
             instructions_for_line = []
         else:
             instructions_for_line.append(line)
     INLINE_COLOR = '\033[91m'
     DEFAULT_COLOR = '\033[0m'
-    for line_num, instructions in line_insturction_mapping.items():
+    for line_num, instructions in line_insturction_mapping:
         if line_num > end or line_num < start:
             for i in instructions:
                 print(INLINE_COLOR + f'I{line_num}\t', i)
