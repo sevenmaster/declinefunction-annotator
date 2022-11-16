@@ -1,57 +1,16 @@
 import lizard
 from lizard import FunctionInfo
 import os
-from typing import List, Generator, Tuple, Dict
+from typing import List, Generator, Tuple
 import subprocess
 import itertools
 import re
-from annotation_result import AnnotationResult, InlineResult
+from annotation_result import InlineResult
 from candidate_generation import FunctionCandidateGeneration
 import settings
 from candidate_generation import Candidate, SourceLocation
 
 annotation = '__attribute__((always_inline))'
-
-
-# TODO detect where function is called
-def produce_inline_variants(path: str) \
-        -> Generator[None, AnnotationResult, None]:
-    MIN_CC = 4
-    with open(path, 'r') as f:
-        sourcecode = f.read()
-    analysis = lizard.analyze_file.analyze_source_code(os.path.basename(path),
-                                                       sourcecode)
-    to_inline: List[FunctionInfo] = \
-        filter(lambda x: x.cyclomatic_complexity >= MIN_CC
-               and x.name != 'main',
-               analysis.function_list)
-
-    source_lines = sourcecode.split('\n')
-    main: FunctionInfo = list(filter(lambda x: x.name == 'main',
-                                     analysis.function_list))[0]
-    function_range = (main.start_line, main.end_line)
-    for function in to_inline:
-        line = function.start_line
-        # annotated = source_lines[:line - 1] \
-        #     + [annotation] \
-        #     + source_lines[line - 1:]
-        # annotated = '\n'.join(annotated)
-        func_def = source_lines[line - 1].split(' ')
-        source_lines[line - 1] = ' '.join(func_def[:2] +
-                                          [annotation] +
-                                          func_def[2:])
-        annotated = '\n'.join(source_lines)
-
-        inline_candidate_names = list(map(lambda x: x.long_name, to_inline))
-        annotation_result = AnnotationResult(
-                annotated_source=annotated,
-                annotated_function=function.long_name,
-                all_candidates=inline_candidate_names,
-                cyclomatic_complexity=function.cyclomatic_complexity,
-                original_path=path,
-                lines_of_calling_function=function_range
-                )
-        yield annotation_result
 
 
 def prepare_result_path(path: str, inlined_function: str) -> str:
