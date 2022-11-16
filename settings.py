@@ -1,1 +1,1 @@
-unoptimized_compile = ['clang++-14', '-g3', '-O0']
+cpp_compile = ['clang++-14', '-g3', '-O1']

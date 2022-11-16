@@ -8,11 +8,15 @@ import settings
 
 
 @dataclass
-class Candidate:
+class GeneralCandidate:
     """
     name(paramers,...) (all information needed for (de-)mangling.
     """
     calle_name: str
+
+
+@dataclass
+class Candidate(GeneralCandidate):
     """
     where the function to be inlined is defined
     """
@@ -29,66 +33,35 @@ class Candidate:
     callers: Dict[str, Tuple[SourceRange, SourceLocation]]
 
 
-class CandidateGeneration(ABC):
-    @abstractmethod
-    def from_source(self, source: str) -> List[Candidate]:
-        pass
+@dataclass
+class LibraryCandidate(GeneralCandidate):
+    """
+    Source location of the call
+    """
+    call_line: SourceLocation
+    """
+    Source range of the caller for va_ranges
+    """
+    caller_range: SourceRange
+    """
+    the calling function name as name(paramers,...)
+    """
+    caller_name: str
 
 
-class FunctionCandidateGeneration(CandidateGeneration):
-    min_cc: int
-
-    def __init__(self, min_cc: int):
-        self.min_cc = min_cc
-
-    def from_file(self, path: str) -> Generator[None, Candidate, None]:
-        folder = os.path.dirname(path)
-        compile_command = settings.unoptimized_compile + [path]
-        db = codeql.Database.create('cpp',
-                                    folder,
-                                    command=compile_command)
-        return self.from_db(db)
-
-    def from_source(self, source: str) -> Generator[None, Candidate, None]:
-        db = codeql.Database.from_cpp(source)
-        return self.from_db(db)
-
-    def from_db(self, db: codeql.Database) -> Generator[None, Generator, None]:
-        raw_results = db.query(f'''
-import cpp
-import semmle.code.cpp.Print
-from FunctionCall fc, Function f
-where
-    fc.getTarget() = f and
-    f.hasDefinition() and
-    f.getMetrics().getCyclomaticComplexity() >= {self.min_cc}
-select
-    getIdentityString(f), f.getLocation(),
-    getIdentityString(fc.getEnclosingFunction()), fc.getLocation(),
-    fc.getEnclosingFunction().getBlock().getLocation()
-        ''')
-        # TODO choose more reasonable types to do better parsing
-        post_processed = post_process(raw_results[1:])
-        groups = group(post_processed)
-        for key, value in groups.items():
-            yield Candidate(calle_name=key,
-                            calle_location=value[0][0],
-                            calle_return_type=value[0][4],
-                            callers={i[1]: (i[3], i[2]) for i in value})
-
-
-def post_process(raw_results: List[List[str]]) -> List[list]:
+def _post_process(raw_results: List[List[str]]) -> List[list]:
     for res in raw_results:
         res.append(res[0].split(' ')[0])  # calle return type
-        res[0] = strip_return_type(res[0])  # calle_name
-        res[1] = to_source_range(res[1]).get_start_location()  # calle_location
-        res[2] = strip_return_type(res[2])  # caller_name
+        res[0] = _strip_return_type(res[0])  # calle_name
+        # calle_location
+        res[1] = to_source_range(res[1]).get_start_location()
+        res[2] = _strip_return_type(res[2])  # caller_name
         res[3] = to_source_range(res[3])  # call location
         res[4] = to_source_range(res[4])  # caller_block
     return raw_results
 
 
-def strip_return_type(full_signature: str) -> str:
+def _strip_return_type(full_signature: str) -> str:
     return ' '.join(full_signature.split(' ')[1:])
 
 
@@ -104,10 +77,104 @@ def to_source_range(code_ql_location: str) -> SourceRange:
     return source_range
 
 
-def group(rows: List[list]):
+def _group(rows: List[list]) -> Dict:
     d = {}
     for row in rows:
         if row[0] not in d:
             d[row[0]] = []
         d[row[0]].append(row[1:])
     return d
+
+
+class CandidateGeneration(ABC):
+    def from_file(self, path: str) -> Generator[None, GeneralCandidate, None]:
+        folder = os.path.dirname(path)
+        compile_command = settings.cpp_compile + [path]
+        db = codeql.Database.create('cpp',
+                                    folder,
+                                    command=compile_command)
+        return self.from_db(db)
+
+    def from_source(self, source: str)\
+            -> Generator[None, GeneralCandidate, None]:
+        db = codeql.Database.from_cpp(source)
+        return self.from_db(db)
+
+    @abstractmethod
+    def from_db(self, db: codeql.Database)\
+            -> Generator[None, GeneralCandidate, None]:
+        pass
+
+
+class TemplateCandidateGeneration(CandidateGeneration):
+    def from_db(self, db: codeql.Database)\
+            -> Generator[None, LibraryCandidate, None]:
+        raw_results = db.query('''
+import cpp
+import semmle.code.cpp.Print
+
+private predicate inLibrary(Element a) {
+    a.getFile().toString().prefix("/usr/include/".length()) = "/usr/include/"
+}
+
+class InterestingFunction extends Function {
+    InterestingFunction() {
+        exists(ConstructorCall a | not inLibrary(a)
+        and a.getTargetType().(Class).getAPublicMember().(Function) = this
+        and inLibrary(a.getTarget()))
+    }
+}
+
+from FunctionCall fc, InterestingFunction f
+where
+    fc.getTarget() = f and
+    not inLibrary(fc)
+select getIdentityString(f), fc.getLocation(),
+fc.getEnclosingFunction().getBlock().getLocation(),
+getIdentityString(fc.getEnclosingFunction())
+        ''')
+        for res in raw_results[1:]:
+            caller_source_range = to_source_range(res[1]).get_start_location()
+            yield LibraryCandidate(
+                    calle_name=res[0],
+                    call_line=caller_source_range,
+                    caller_range=to_source_range(res[2]),
+                    caller_name=_strip_return_type(res[3])
+                    )
+
+
+class FunctionCandidateGeneration(CandidateGeneration):
+    min_cc: int
+
+    def __init__(self, min_cc: int):
+        self.min_cc = min_cc
+
+    def from_db(self, db: codeql.Database) -> Generator[None, Candidate, None]:
+        raw_results = db.query(f'''
+import cpp
+import semmle.code.cpp.Print
+
+private predicate inLibrary(Element a) {{
+    a.getFile().toString().prefix("/usr/include/".length()) = "/usr/include/"
+}}
+
+from FunctionCall fc, Function f
+where
+    fc.getTarget() = f and
+    f.hasDefinition() and
+    not inLibrary(f) and
+    not inLibrary(fc) and
+    f.getMetrics().getCyclomaticComplexity() >= {self.min_cc}
+select
+    getIdentityString(f), f.getLocation(),
+    getIdentityString(fc.getEnclosingFunction()), fc.getLocation(),
+    fc.getEnclosingFunction().getBlock().getLocation()
+        ''')
+        # TODO choose more reasonable types to do better parsing
+        post_processed = _post_process(raw_results[1:])
+        groups = _group(post_processed)
+        for key, value in groups.items():
+            yield Candidate(calle_name=key,
+                            calle_location=value[0][0],
+                            calle_return_type=value[0][4],
+                            callers={i[1]: (i[3], i[2]) for i in value})

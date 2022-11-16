@@ -1,14 +1,14 @@
-import lizard
-from lizard import FunctionInfo
 import os
-from typing import List, Generator, Tuple
+from typing import Generator
 import subprocess
-import itertools
-import re
 from annotation_result import InlineResult
-from candidate_generation import FunctionCandidateGeneration
 import settings
-from candidate_generation import Candidate, SourceLocation
+from candidate_generation import Candidate,\
+                                 SourceLocation,\
+                                 TemplateCandidateGeneration,\
+                                 FunctionCandidateGeneration,\
+                                 LibraryCandidate
+from va_ranges import get_va_ranges
 
 annotation = '__attribute__((always_inline))'
 
@@ -55,92 +55,63 @@ def produce_inline_variants_ql(path: str)\
         yield InlineResult(candidate, result_path, result_source_code)
 
 
-def compile_with_symbols(annotated_source_path: str) -> str:
-    annotated_source_path = os.path.abspath(annotated_source_path)
-    binary_path = annotated_source_path[:-4]
-    command = settings.unoptimized_compile +\
-        [annotated_source_path, '-o', binary_path]
+def compile_with_symbols(source_file: str) -> str:
+    """
+    compile to binary with g3 symbols according to settings.cpp_compile.
+    The resulting binary will be placed next to the source_file.
+    :param source_file: .cpp file to compile
+    """
+    source_file = os.path.abspath(source_file)
+    binary_path = source_file[:-4]
+    command = settings.cpp_compile +\
+        [source_file, '-o', binary_path]
     child = subprocess.call(command)
     assert child == 0
     return binary_path
 
 
-def get_va_ranges(binary_path: str,
-                  caller: str,
-                  caller_range: Tuple[int, int]) -> List[Tuple[int, int]]:
-    if caller == 'main()':
-        caller = 'main'
-    start = caller_range[0] + 1
-    end = caller_range[1] + 1
-
-    # get objdump lines for disassembly of caller with draw line mapping
-    objdump_command = ['llvm-objdump',
-                       '-M', 'intel',
-                       '--demangle',
-                       f'--disassemble-symbols={caller}',
-                       '-l', binary_path]
-    output = subprocess.check_output(objdump_command)
-    output = output.decode('utf-8')
-    output = output.split('\n')
-
-    output = itertools.dropwhile(  # keep only disassembly, no headers
-            lambda x: re.match(r'; .+.cpp:[0-9]+', x) is None,
-            output
-            )
-    output = filter(lambda x: x != '', output)  # remove blank lines
-    output = list(map(str.lstrip, output))  # remove indentation
-    line_insturction_mapping: List[Tuple[int, List[str]]] = []
-    instructions_for_line: List[str] = []
-    for line in output:
-        if line.startswith('; '):
-            line_num = int(line.split('.cpp:')[-1])
-            if instructions_for_line != []:  # store previous line if exists
-                line_insturction_mapping.append(
-                        (line_num, instructions_for_line))
-            instructions_for_line = []
-        else:
-            instructions_for_line.append(line)
-    INLINE_COLOR = '\033[91m'
-    DEFAULT_COLOR = '\033[0m'
-    for line_num, instructions in line_insturction_mapping:
-        if line_num > end or line_num < start:
-            for i in instructions:
-                print(INLINE_COLOR + f'I{line_num}\t', i)
-        else:
-            for i in instructions:
-                print(DEFAULT_COLOR + f'O{line_num}\t', i)
-    return None
-
-
 in_path = '/home/nine/CLionProjects/'\
           + 'inlinefunctionplayground/onlyInline/inlineFunction.cpp'
 path = os.path.abspath(in_path)
-# produce_inline_variants_ql(path)
 
-# for s in produce_inline_variants(in_path):
-#     new_path = './results/' + s.new_filename()
+
+# for s in produce_inline_variants_ql(in_path):
+#     s: InlineResult
+#     print('==================')
+#     print('==================')
+#     print('calle', s.candidate.calle_name)
+#     print('==================')
+#     print('==================')
+#     new_path = s.annotated_source_path
+#     binary_path = new_path[:-4]
 #     with open(new_path, 'w+') as f:
 #         f.write(s.annotated_source)
 #     binary_path = compile_with_symbols(new_path)
-#     get_va_ranges(binary_path, 'main', s.lines_of_calling_function)
+#     print(s.candidate.callers)
+#     for caller_name, location in s.candidate.callers.items():
+#         print('------------------')
+#         print('caller', caller_name)
+#         print('------------------')
+#         caller_range = (location[0].line_from, location[0].line_to)
+#         get_va_ranges(binary_path, caller_name, caller_range)
 
 
-for s in produce_inline_variants_ql(in_path):
-    s: InlineResult
+in_path = '/home/nine/CLionProjects/'\
+          + 'inlinefunctionplayground/alltemplate/main.cpp'
+path = os.path.abspath(in_path)
+
+
+candidate_generator = TemplateCandidateGeneration()
+for candidate in candidate_generator.from_file(in_path):
+
     print('==================')
     print('==================')
-    print('calle', s.candidate.calle_name)
+    print('calle', candidate.calle_name)
+    print('in', candidate.caller_name)
     print('==================')
     print('==================')
-    new_path = s.annotated_source_path
-    binary_path = new_path[:-4]
-    with open(new_path, 'w+') as f:
-        f.write(s.annotated_source)
-    binary_path = compile_with_symbols(new_path)
-    print(s.candidate.callers)
-    for caller_name, location in s.candidate.callers.items():
-        print('------------------')
-        print('caller', caller_name)
-        print('------------------')
-        caller_range = (location[0].line_from, location[0].line_to)
-        get_va_ranges(binary_path, caller_name, caller_range)
+    candidate: LibraryCandidate
+    binary_path = compile_with_symbols(path)
+    caller_range = (candidate.caller_range.line_from,
+                    candidate.caller_range.line_to)
+    get_va_ranges(binary_path, candidate.caller_name, caller_range)
