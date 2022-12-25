@@ -55,14 +55,16 @@ def produce_inline_variants_ql(path: str)\
         yield InlineResult(candidate, result_path, result_source_code)
 
 
-def compile_with_symbols(source_file: str) -> str:
+def compile_with_symbols(source_file: str, binary_path=None) -> str:
     """
     compile to binary with g3 symbols according to settings.cpp_compile.
-    The resulting binary will be placed next to the source_file.
+    The resulting binary will be placed next to the source_file, by default
     :param source_file: .cpp file to compile
+    :param binary_path: where to place the binary
     """
     source_file = os.path.abspath(source_file)
-    binary_path = source_file[:-4]
+    if binary_path is None:
+        binary_path = source_file[:-4]
     command = settings.cpp_compile +\
         [source_file, '-o', binary_path]
     child = subprocess.call(command)
@@ -70,48 +72,46 @@ def compile_with_symbols(source_file: str) -> str:
     return binary_path
 
 
-in_path = '/home/nine/CLionProjects/'\
-          + 'inlinefunctionplayground/onlyInline/inlineFunction.cpp'
-path = os.path.abspath(in_path)
+if __name__ == '__main__':
+    in_path = '/home/nine/CLionProjects/'\
+              + 'inlinefunctionplayground/onlyInline/inlineFunction.cpp'
+    path = os.path.abspath(in_path)
 
+    # for s in produce_inline_variants_ql(in_path):
+    #     s: InlineResult
+    #     print('==================')
+    #     print('==================')
+    #     print('calle', s.candidate.calle_name)
+    #     print('==================')
+    #     print('==================')
+    #     new_path = s.annotated_source_path
+    #     binary_path = new_path[:-4]
+    #     with open(new_path, 'w+') as f:
+    #         f.write(s.annotated_source)
+    #     binary_path = compile_with_symbols(new_path)
+    #     print(s.candidate.callers)
+    #     for caller_name, location in s.candidate.callers.items():
+    #         print('------------------')
+    #         print('caller', caller_name)
+    #         print('------------------')
+    #         caller_range = (location[0].line_from, location[0].line_to)
+    #         get_va_ranges(binary_path, caller_name, caller_range)
 
-# for s in produce_inline_variants_ql(in_path):
-#     s: InlineResult
-#     print('==================')
-#     print('==================')
-#     print('calle', s.candidate.calle_name)
-#     print('==================')
-#     print('==================')
-#     new_path = s.annotated_source_path
-#     binary_path = new_path[:-4]
-#     with open(new_path, 'w+') as f:
-#         f.write(s.annotated_source)
-#     binary_path = compile_with_symbols(new_path)
-#     print(s.candidate.callers)
-#     for caller_name, location in s.candidate.callers.items():
-#         print('------------------')
-#         print('caller', caller_name)
-#         print('------------------')
-#         caller_range = (location[0].line_from, location[0].line_to)
-#         get_va_ranges(binary_path, caller_name, caller_range)
+    in_path = '/home/nine/CLionProjects/'\
+              + 'inlinefunctionplayground/alltemplate/main.cpp'
+    path = os.path.abspath(in_path)
 
+    candidate_generator = TemplateCandidateGeneration()
+    for candidate in candidate_generator.from_file(in_path):
 
-in_path = '/home/nine/CLionProjects/'\
-          + 'inlinefunctionplayground/alltemplate/main.cpp'
-path = os.path.abspath(in_path)
-
-
-candidate_generator = TemplateCandidateGeneration()
-for candidate in candidate_generator.from_file(in_path):
-
-    print('==================')
-    print('==================')
-    print('calle', candidate.calle_name)
-    print('in', candidate.caller_name)
-    print('==================')
-    print('==================')
-    candidate: LibraryCandidate
-    binary_path = compile_with_symbols(path)
-    caller_range = (candidate.caller_range.line_from,
-                    candidate.caller_range.line_to)
-    get_va_ranges(binary_path, candidate.caller_name, caller_range)
+        print('==================')
+        print('==================')
+        print('calle', candidate.calle_name)
+        print('in', candidate.caller_name)
+        print('==================')
+        print('==================')
+        candidate: LibraryCandidate
+        binary_path = compile_with_symbols(path)
+        caller_range = (candidate.caller_range.line_from,
+                        candidate.caller_range.line_to)
+        get_va_ranges(binary_path, candidate.caller_name, caller_range)

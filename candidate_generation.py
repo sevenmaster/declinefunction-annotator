@@ -16,6 +16,11 @@ class GeneralCandidate:
 
 
 @dataclass
+class DatasetCandidate(GeneralCandidate):
+    caller_range: SourceRange
+
+
+@dataclass
 class Candidate(GeneralCandidate):
     """
     where the function to be inlined is defined
@@ -130,6 +135,40 @@ where
     fc.getTarget() = f and
     not inLibrary(fc)
 select getIdentityString(f), fc.getLocation(),
+fc.getEnclosingFunction().getBlock().getLocation(),
+getIdentityString(fc.getEnclosingFunction())
+        ''')
+        for res in raw_results[1:]:
+            caller_source_range = to_source_range(res[1]).get_start_location()
+            yield LibraryCandidate(
+                    calle_name=res[0],
+                    call_line=caller_source_range,
+                    caller_range=to_source_range(res[2]),
+                    caller_name=_strip_return_type(res[3])
+                    )
+
+
+class StringVectorPushBackCandidateGeneration(CandidateGeneration):
+    def from_db(self, db: codeql.Database)\
+            -> Generator[None, LibraryCandidate, None]:
+        raw_results = db.query('''
+import cpp
+import semmle.code.cpp.Print
+
+private predicate inLibrary(Element a) {
+    a.getFile().toString().prefix("/usr/include/".length()) = "/usr/include/"
+}
+
+from FunctionCall fc
+where fc.getTarget().getName() = "push_back"
+and not inLibrary(fc)
+and fc.getTarget().isMember()
+and fc.getTarget()
+      .getDeclaringType()
+      .getTemplateArgument(0)
+      .toString()
+      .prefix("basic_string".length()) = "basic_string"
+select getIdentityString(fc.getTarget()), fc.getLocation(),
 fc.getEnclosingFunction().getBlock().getLocation(),
 getIdentityString(fc.getEnclosingFunction())
         ''')

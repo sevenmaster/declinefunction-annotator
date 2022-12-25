@@ -17,9 +17,6 @@ class SourceRange:
     line_to: int
     column_to: int
 
-    def __init__(self):
-        pass
-
     @classmethod
     def from_locations(cls, start: SourceLocation, end: SourceLocation):
         assert(start.file == end.file)

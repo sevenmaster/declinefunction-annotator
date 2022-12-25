@@ -13,4 +13,5 @@ for solution in p:
     if len(solution.function_list) < 2:
         os.unlink(solution.filename)
     else:
+        # add .cpp extension for kept files
         os.replace(solution.filename, solution.filename[:-4] + '.cpp')
