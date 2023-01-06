@@ -78,13 +78,11 @@ def _strip_return_type(full_signature: str) -> str:
 def to_source_range(code_ql_location: str) -> SourceRange:
     location_range = code_ql_location[len('file://'):]
     split = location_range.split(':')
-    source_range = SourceRange()
-    source_range.line_from = int(split[-4])
-    source_range.column_from = int(split[-3])
-    source_range.line_to = int(split[-2])
-    source_range.column_to = int(split[-1])
-    source_range.file = ':'.join(split[:-4])
-    return source_range
+    return SourceRange(file=':'.join(split[:-4]),
+                       line_from=int(split[-4]),
+                       column_from=int(split[-3]),
+                       line_to=int(split[3]),
+                       column_to=int(split[-1]))
 
 
 def _group(rows: List[list]) -> Dict:
