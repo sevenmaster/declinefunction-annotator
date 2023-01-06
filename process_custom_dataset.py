@@ -1,9 +1,14 @@
-from typing import List, Dict
+from typing import List, Dict, Union
 import compilation
 import os
 import lizard
 from candidate_generation import DatasetCandidate
 from label import SourceRange
+from va_ranges import get_va_ranges
+from tqdm import tqdm
+# from multiprocessing import Pool, cpu_count
+import json
+import time
 
 
 def strip_arguments(demangled: str) -> str:
@@ -18,7 +23,7 @@ dataset_location = '../datasetQueryTest/dataset/src/'
 with open(os.path.join(dataset_location, 'all_funcs.txt'), 'r') as f:
     funcs = f.readlines()
 
-source_files: Dict[str, List[str]] = {}
+source_files: Dict[str, List[Union[str, DatasetCandidate]]] = {}
 
 for func in funcs:
     # this is not how to do signature parsing but works here
@@ -35,7 +40,10 @@ for func in funcs:
         source_files[file_name] = []
     source_files[file_name].append(func_sig)
 
+processing_times = []
 for source_file in source_files:
+    start = time.time()
+
     def still_exists(func_sig: str) -> bool:
         return strip_arguments(func_sig) in\
                 functions, source_files[source_file]
@@ -57,22 +65,42 @@ for source_file in source_files:
     filtered = list(map(to_candidate,
                         filter(still_exists, source_files[source_file])))
     source_files[source_file] = filtered
+    end = time.time()
+    processing_times.append(end - start)
+
+print(f'Average processing time: {sum(processing_times) / len(processing_times)}')
 
 binary_files: Dict[str, List[str]] = {}
-# compile all the source files
-for file_name in source_files:
-    file_name = os.path.join(dataset_location, file_name)
-    # get the folder where file_name is located
-    folder_name, _ = os.path.split(file_name)
-    # create the folder bin if in folder_name it doesn't exist
-    binary_dir = os.path.join(folder_name, 'bin/', file_name[:4])
-    os.makedirs(binary_dir, exist_ok=True)
-    # compile the source code
-    binary_path = compilation.compile_all(file_name, binary_dir)
-    if file_name not in binary_files:
-        binary_files[file_name] = []
-    binary_files[file_name].append(binary_path)
 
-for source_file, binary_files in binary_files.items():
+
+def compile_here(file_name: str) -> List[str]:
+    file_path = os.path.join(dataset_location, file_name)
+    # get the folder where file_name is located
+    folder_name, _ = os.path.split(file_path)
+    # compile the source code
+    binary_path = compilation.compile_all(file_path, folder_name)
+    return binary_path
+
+
+for file_name in tqdm(source_files.keys()):
+    binary_files[file_name] = compile_here(file_name)
+
+
+for source_file, binary_files in tqdm(binary_files.items()):
     for binary_file in binary_files:
-        pass
+        output = {}
+        label_file = binary_file + '.json'
+        # if label file is newer than binary file, skip
+        if os.path.exists(label_file) and\
+                os.path.getmtime(label_file) > os.path.getmtime(binary_file):
+            continue
+        for candidate in source_files[source_file]:
+            f = candidate.caller_range.line_from
+            t = candidate.caller_range.line_to
+            va_ranges = get_va_ranges(binary_path=binary_file,
+                                      caller=candidate.calle_name,
+                                      caller_range=(f, t),
+                                      log=False)
+            output[candidate.calle_name] = va_ranges
+        with open(label_file, 'w') as f:
+            f.write(json.dumps(output))

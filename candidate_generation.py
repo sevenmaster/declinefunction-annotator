@@ -19,6 +19,11 @@ class GeneralCandidate:
 class DatasetCandidate(GeneralCandidate):
     caller_range: SourceRange
 
+    def __hash__(self):
+        return hash(self.calle_name + self.caller_range.file +
+                    str(self.caller_range.line_from) +
+                    str(self.caller_range.line_to))
+
 
 @dataclass
 class Candidate(GeneralCandidate):

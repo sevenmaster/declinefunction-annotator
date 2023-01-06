@@ -2,6 +2,7 @@ import itertools
 import re
 import subprocess
 from typing import List, Tuple, Set
+import mangle
 
 
 def _caller_source_file(output: List[str]) -> str:
@@ -22,7 +23,7 @@ def _get_disassembly(binary_path: str, caller: str) -> List[str]:
     # get objdump lines for disassembly of caller with draw line mapping
     objdump_command = ['llvm-objdump',
                        '-M', 'intel',
-                       '--demangle',
+                       # '--demangle',
                        f'--disassemble-symbols={caller}',
                        '-l', binary_path]
     output = subprocess.check_output(objdump_command)
@@ -36,7 +37,10 @@ def _parse(output: List[str]) -> List[Tuple[int, str, List[str]]]:
             output
             )
     output = filter(lambda x: x != '', output)  # remove blank lines
-    output = list(map(str.lstrip, output))  # remove indentation
+    output = map(str.lstrip, output)  # remove indentation
+    # filter out lines that start with #
+    output = filter(lambda x: not x.startswith('#'), output)
+    output = list(output)
     caller_source_file = _caller_source_file(output)
     line_to_instructions: List[Tuple[int, str, List[str]]] = []
     instructions_for_line: List[str] = []
@@ -61,6 +65,8 @@ def get_va_ranges(binary_path: str,
                   log=True) -> List[int]:
     if caller == 'main()':
         caller = 'main'
+    else:
+        caller = mangle.mangle(binary_path, caller)
     start = caller_range[0]
     end = caller_range[1] + 1
 
@@ -71,7 +77,7 @@ def get_va_ranges(binary_path: str,
     DEFAULT_COLOR = '\033[0m'
     res: Set[int] = set()
     for line_num, from_file, instructions in line_to_instructions:
-        if line_num > end or line_num < start\
+        if (line_num > end and False or line_num < start and False)\
                 or from_file != caller_source_file:
             if log:
                 print(INLINE_COLOR + from_file, line_num)
@@ -86,6 +92,6 @@ def get_va_ranges(binary_path: str,
                 for instr in instructions:
                     print(DEFAULT_COLOR + f'O{line_num}\t', instr)
         ignore = any('prevent_opt' in instr for instr in instructions)
-
-    print(DEFAULT_COLOR)
+    if log:
+        print(DEFAULT_COLOR)
     return sorted(res)

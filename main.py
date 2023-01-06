@@ -9,6 +9,7 @@ from candidate_generation import Candidate,\
                                  FunctionCandidateGeneration,\
                                  LibraryCandidate
 from va_ranges import get_va_ranges
+import time
 
 annotation = '__attribute__((always_inline))'
 
@@ -73,9 +74,9 @@ def compile_with_symbols(source_file: str, binary_path=None) -> str:
 
 
 if __name__ == '__main__':
-    in_path = '/home/nine/CLionProjects/'\
-              + 'inlinefunctionplayground/onlyInline/inlineFunction.cpp'
-    path = os.path.abspath(in_path)
+    # in_path = '/home/nine/CLionProjects/'\
+    #           + 'inlinefunctionplayground/onlyInline/inlineFunction.cpp'
+    # path = os.path.abspath(in_path)
 
     # for s in produce_inline_variants_ql(in_path):
     #     s: InlineResult
@@ -97,12 +98,16 @@ if __name__ == '__main__':
     #         caller_range = (location[0].line_from, location[0].line_to)
     #         get_va_ranges(binary_path, caller_name, caller_range)
 
-    in_path = '/home/nine/CLionProjects/'\
-              + 'inlinefunctionplayground/alltemplate/main.cpp'
+    in_path = '/tmp/src/main.cpp'
     path = os.path.abspath(in_path)
 
+    start = time.time()
     candidate_generator = TemplateCandidateGeneration()
-    for candidate in candidate_generator.from_file(in_path):
+    gen = candidate_generator.from_file(in_path)
+    end = time.time()
+    print('init', end - start)
+    for candidate in gen:
+        start = time.time()
 
         print('==================')
         print('==================')
@@ -114,4 +119,9 @@ if __name__ == '__main__':
         binary_path = compile_with_symbols(path)
         caller_range = (candidate.caller_range.line_from,
                         candidate.caller_range.line_to)
-        get_va_ranges(binary_path, candidate.caller_name, caller_range)
+        get_va_ranges(binary_path,
+                      candidate.caller_name,
+                      caller_range,
+                      log=False)
+        end = time.time()
+        print('time', end - start)

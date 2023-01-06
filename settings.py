@@ -1,1 +1,1 @@
-cpp_compile = ['clang++', '-g3', '-O1']
+cpp_compile = ['clang++', '-g3', '-O3']
