@@ -7,6 +7,7 @@ CodeQL for Python.
 import os
 import shutil
 import tempfile
+import settings
 
 import codeql
 from .common import *
@@ -27,7 +28,7 @@ class Query(object):
     @staticmethod
     def from_source(code):
         # path = temporary_file(suffix='.ql')
-        path = '/home/nine/Documents/privProg/ctfs/kitctf-meeting/vscode-codeql-starter/codeql-custom-queries-cpp/query.ql'
+        path = settings.query_home + '/test.ql'
         with open(path, mode='w') as f:
             f.write(code)
         return Query(path)

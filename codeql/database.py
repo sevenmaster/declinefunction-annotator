@@ -6,6 +6,7 @@ CodeQL for Python.
 
 import os
 import shutil
+import settings
 
 import codeql
 from .common import run, search_path, temporary_dir
@@ -59,7 +60,7 @@ class Database(object):
         """
         # Prepare query directory
         if not hasattr(self, 'qldir'):
-            self.qldir = '/home/nine/Documents/privProg/ctfs/kitctf-meeting/vscode-codeql-starter/codeql-custom-queries-cpp'
+            self.qldir = settings.query_home
             qlpack_path = os.path.join(self.qldir, 'qlpack.yml')
             with open(qlpack_path, mode='w') as f:
                 qlpack_text = CODEQL_QLPACK.format('codeql-cpp')
