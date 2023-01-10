@@ -98,14 +98,13 @@ if __name__ == '__main__':
     #         caller_range = (location[0].line_from, location[0].line_to)
     #         get_va_ranges(binary_path, caller_name, caller_range)
 
-    in_path = '/tmp/src/main.cpp'
+    in_path = '/tmp/bla/a.out'
     path = os.path.abspath(in_path)
 
     start = time.time()
     candidate_generator = TemplateCandidateGeneration()
     gen = candidate_generator.from_file(in_path)
     end = time.time()
-    print('init', end - start)
     for candidate in gen:
         start = time.time()
 
@@ -122,6 +121,4 @@ if __name__ == '__main__':
         get_va_ranges(binary_path,
                       candidate.caller_name,
                       caller_range,
-                      log=False)
-        end = time.time()
-        print('time', end - start)
+                      log=True)
