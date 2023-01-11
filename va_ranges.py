@@ -69,7 +69,6 @@ def get_va_ranges(binary_path: str,
         caller = mangle.mangle(binary_path, caller)
     start = caller_range[0]
     end = caller_range[1] + 1
-
     disasm = _get_disassembly(binary_path, caller)
     ignore = any('prevent_opt' in instr for instr in disasm)
     line_to_instructions, caller_source_file = _parse(disasm)

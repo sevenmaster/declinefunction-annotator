@@ -98,7 +98,7 @@ if __name__ == '__main__':
     #         caller_range = (location[0].line_from, location[0].line_to)
     #         get_va_ranges(binary_path, caller_name, caller_range)
 
-    in_path = '/tmp/bla/a.out'
+    in_path = '/tmp/bla/main.cpp'
     path = os.path.abspath(in_path)
 
     start = time.time()
