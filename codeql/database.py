@@ -59,39 +59,41 @@ class Database(object):
         Syntactic sugar to execute a CodeQL snippet and parse the results.
         """
         # Prepare query directory
-        if not hasattr(self, 'qldir'):
-            self.qldir = settings.query_home
-            qlpack_path = os.path.join(self.qldir, 'qlpack.yml')
-            with open(qlpack_path, mode='w') as f:
-                qlpack_text = CODEQL_QLPACK.format('codeql-cpp')
-                f.write(qlpack_text)
+        self.qldir = settings.query_home
+        # if not hasattr(self, 'qldir'):
+        #     qlpack_path = os.path.join(self.qldir, 'qlpack.yml')
+        #     with open(qlpack_path, mode='w') as f:
+        #         qlpack_text = CODEQL_QLPACK.format('codeql-cpp')
+        #         f.write(qlpack_text)
         # Perform query
-        query_path = os.path.join(self.qldir, 'query.ql')
-        # reply_path = os.path.join(self.qldir, 'reply.csv')
-        with open(query_path, mode='w') as f:
+        # new unique query path
+        query_file = os.path.join(self.qldir, f'query_{id(self)}.ql')
+        with open(query_file, mode='w') as f:
             f.write(ql)
-        query = codeql.Query(query_path)
+        query = codeql.Query(query_file)
         bqrs = query.run(database=self)
+        os.remove(query_file)
         return bqrs.parse()
 
     # Interface
     @staticmethod
     def create(language, source, command=None, location=None):
         """
-        Create a CodeQL database instance for a source tree that can be analyzed
-        using one of the CodeQL products.
+        Create a CodeQL database instance for a source tree that can be
+        analyzed using one of the CodeQL products.
 
         Arguments:
         language -- The language that the new database will be used to analyze.
         source -- The root source code directory.
             In many cases, this will be the checkout root. Files within it are
             considered to be the primary source files for this database.
-            In some output formats, files will be referred to by their relative path
-            from this directory.
+            In some output formats, files will be referred to by their relative
+            path from this directory.
         command -- For compiled languages, build commands that will cause the
-            compiler to be invoked on the source code to analyze. These commands
-            will be executed under an instrumentation environment that allows
-            analysis of generated code and (in some cases) standard libraries.
+            compiler to be invoked on the source code to analyze. These
+            commands will be executed under an instrumentation environment that
+            allows analysis of generated code and (in some cases) standard
+            libraries.
         location -- Path to generated database
         """
         # Syntactic sugar: Default location to temporary directory
@@ -101,8 +103,9 @@ class Database(object):
         # Create and submit command
         args = ['database', 'create', '-l', language, '-s', source]
         if command is not None:
-            if type(command) == list:
-                command = ' '.join(map(lambda x: f'"{x}"' if ' ' in x else x, command))
+            if isinstance(command, list):
+                command = ' '.join(map(lambda x: f'"{x}"' if ' ' in x else x,
+                                       command))
             args += ['-c', command]
         args.append(location)
         print(command)
@@ -125,8 +128,8 @@ class Database(object):
         and codeql database interpret-results commands. If you want to run
         queries whose results don't meet the requirements for being interpreted
         as source-code alerts, use codeql database run-queries or codeql query
-        run instead, and then codeql bqrs decode to convert the raw results to a
-        readable notation.
+        run instead, and then codeql bqrs decode to convert the raw results to
+        a readable notation.
         """
         # Support single query or list of queries
         if type(queries) is not list:

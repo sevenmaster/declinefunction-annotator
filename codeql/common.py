@@ -5,8 +5,10 @@ CodeQL for Python.
 """
 
 import os
+import settings
 import subprocess
 import tempfile
+from typing import Iterable
 import uuid
 
 # Configuration
@@ -49,10 +51,16 @@ def temporary_file(create=True, prefix=None, suffix=None):
     return path
 
 
+def temporary_query_file() -> str:
+    location = settings.query_home
+    # create a file that does not yet exist in location
+    return tempfile.NamedTemporaryFile(dir=location, delete=False).name
+
+
 # Environment
 def set_search_path(path):
     global search_path
-    if type(path) == list:
+    if isinstance(path, Iterable):
         separator = ';' if os.name == 'nt' else ':'
         path = separator.join(path)
     search_path = path

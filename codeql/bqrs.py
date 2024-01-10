@@ -4,15 +4,14 @@
 CodeQL for Python.
 """
 
+from __future__ import annotations  # to type hint the class itself in diff
 import csv
-import io
-import os
-import shutil
-import tempfile
+from typing import Union
 
-from .common import *
+from .common import run, temporary_file
 
-class BQRS(object):
+
+class BQRS:
     def __init__(self, path):
         """
         Arguments:
@@ -36,10 +35,13 @@ class BQRS(object):
         """
         Display metadata for a BQRS file.
 
-        This command displays an overview of the data contained in the compact binary BQRS file that is the result of executing a
-        query. It shows the names and sizes of each result set (table) in the BQRS file, and the column types of each result set.
+        This command displays an overview of the data contained in the compact
+        binary BQRS file that is the result of executing a query. It shows the
+        names and sizes of each result set (table) in the BQRS file, and the
+        column types of each result set.
 
-        It can also optionally precompute offsets for using the pagination options of codeql bqrs decode. This is mainly useful
+        It can also optionally precompute offsets for using the pagination
+        options of codeql bqrs decode. This is mainly useful
         for IDE plugins.
         """
         options = ['-v']
@@ -49,7 +51,8 @@ class BQRS(object):
         """
         Convert result data from BQRS into other forms.
 
-        The decoded output will be written to standard output, unless the --output option is specified.
+        The decoded output will be written to standard output, unless the
+        --output option is specified.
         """
         options = []
         if format:
@@ -58,10 +61,10 @@ class BQRS(object):
             options += ['-o', output]
         self.run_command('decode', options)
 
-    def diff(self, other):
+    def diff(self, other: Union[str, BQRS]):
         """
         Compute the difference between two result sets.
         """
-        if type(other) == BQRS:
+        if isinstance(other, BQRS):
             other = other.path
         self.run_command('diff', post=[other])

@@ -4,15 +4,14 @@
 CodeQL for Python.
 """
 
-import os
-import shutil
-import tempfile
-import settings
+from typing import Union
 
 import codeql
-from .common import *
+from .common import temporary_file, run, temporary_query_file
+import os
 
-class Query(object):
+
+class Query:
     def __init__(self, path):
         """
         Arguments:
@@ -21,14 +20,16 @@ class Query(object):
         # Temporaries will be cleaned up on destructor
         self.path = path
 
+    def __del__(self):
+        os.remove(self.path)
+
     # Helpers
     def run_command(self, command, options=[], post=[]):
         run(['query', command] + options + [self.path] + post)
 
     @staticmethod
     def from_source(code):
-        # path = temporary_file(suffix='.ql')
-        path = settings.query_home + '/test.ql'
+        path = temporary_query_file()
         with open(path, mode='w') as f:
             f.write(code)
         return Query(path)
@@ -42,32 +43,39 @@ class Query(object):
         """
         Compile or check QL code.
 
-        Compile one or more queries. Usually the main outcome of this command is that the compiled version of the query is written
-        to a compilation cache where it will be found when the query is later executed. Other output options are mostly for
-        debugging.
+        Compile one or more queries. Usually the main outcome of this command
+        is that the compiled version of the query is written to a compilation
+        cache where it will be found when the query is later executed.
+        Other output options are mostly for debugging.
         """
         self.run('compile')
 
-    def run(self, database, output=None):
+    def run(self, database: str | codeql.Database, output=None):
         """
         Run a single query.
 
-        This command runs single query against a CodeQL database or raw QL dataset.
+        This command runs single query against a CodeQL database or raw QL
+        dataset.
 
-        By default the result of the query will be displayed on the terminal in a human-friendly rendering. If you want to do
-        further processing of the results, we strongly recommend using the --output option to write the results to a file in an
-        intermediate binary format, which can then be unpacked into various more machine-friendly representations by codeql
+        By default the result of the query will be displayed on the terminal in
+        a human-friendly rendering. If you want to do
+        further processing of the results, we strongly recommend using the
+        --output option to write the results to a file in an
+        intermediate binary format, which can then be unpacked into various
+        more machine-friendly representations by CodeQL
         bqrs decode.
 
-        If your query produces results in a form that can be interpreted as source-code alerts, you may find codeql database
-        analyze a more convenient way to run it. In particular, codeql database analyze can produce output in the SARIF format,
-        which can be used with an variety of alert viewers.
+        If your query produces results in a form that can be interpreted as
+        source-code alerts, you may find CodeQL database
+        analyze a more convenient way to run it. In particular, CodeQL database
+        analyze can produce output in the SARIF format, which can be used with
+        an variety of alert viewers.
         """
         # Return temporary results if no output is specified
         if output is None:
             output = temporary_file(suffix='.bqrs')
         # Obtain actual path to database
-        if type(database) == codeql.Database:
+        if isinstance(database, codeql.Database):
             database = database.path
         # Perform query and return results
         options = ['-o', output, '-d', database]
